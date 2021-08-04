@@ -89,7 +89,7 @@ pipeline {
             }
         }
         
-        stage('Deploy Frontned') {
+        stage('Deploy Frontend') {
             steps {
                 echo "Deploying frontend started"
                 
