@@ -1,0 +1,7 @@
+# Ignore from back-end module
+*.class
+target/
+
+# Ignore from front-end module
+dist/
+node_modules/
