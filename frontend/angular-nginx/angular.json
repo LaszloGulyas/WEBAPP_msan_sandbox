@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "angular-docker-sandbox": {
+    "angular-nginx": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:application": {
@@ -17,7 +17,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
-            "outputPath": "dist/angular-docker-sandbox",
+            "outputPath": "dist/angular-nginx",
             "index": "src/index.html",
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
@@ -68,10 +68,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "angular-docker-sandbox:build:production"
+              "browserTarget": "angular-nginx:build:production"
             },
             "development": {
-              "browserTarget": "angular-docker-sandbox:build:development"
+              "browserTarget": "angular-nginx:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -79,7 +79,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "angular-docker-sandbox:build"
+            "browserTarget": "angular-nginx:build"
           }
         },
         "test": {
@@ -102,5 +102,5 @@
       }
     }
   },
-  "defaultProject": "angular-docker-sandbox"
+  "defaultProject": "angular-nginx"
 }
