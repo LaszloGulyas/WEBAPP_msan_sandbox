@@ -9,6 +9,10 @@ pipeline {
         BACKEND_BUILT_FILE_NAME = 'spring-docker-sandbox-0.0.1-SNAPSHOT.jar'
         BACKEND_CONTAINER_NAME = 'backend-spring-server'
         BACKEND_IMAGE_NAME = 'backend-spring-server-img'
+        
+        FRONTEND_PATH = '/home/jenkins/frontend/angular-nginx'
+        FRONTEND_CONTAINER_NAME = 'frontend-nginx-server'
+        FRONTEND_IMAGE_NAME = 'frontend-nginx-server-img'
     }
 
     stages {
@@ -56,7 +60,7 @@ pipeline {
                 echo "Clean up files"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
                     cd /home/jenkins/
-                    rm -r backend
+                    rm -r -f backend
                     exit
                     EOT"""                
 
@@ -64,9 +68,63 @@ pipeline {
             }
         }
         
+        stage('Build Frontend') {
+            steps {
+                echo "Building frontend started"
+                
+                echo "Copy files to remote server"
+                sh """scp -r frontend $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:/home/jenkins/"""                
+                
+                echo "Build Angular files"
+                // 'echo no' is answering the prompted question of sending telemetry data 
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.FRONTEND_PATH
+                    npm i
+                    echo no
+                    npm run build --prod
+                    exit
+                    EOT"""                
+                
+                echo "Building frontend completed"
+            }
+        }
+        
+        stage('Deploy Frontned') {
+            steps {
+                echo "Deploying frontend started"
+                
+                echo "Copy deploy scripts to remote server"
+                sh """scp devops/build_scripts/docker_build_run_frontend.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.FRONTEND_PATH"""
+                sh """scp devops/build_scripts/docker_stop_remove.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.FRONTEND_PATH"""
+                
+                echo "Stop and remove previously running container/image"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.FRONTEND_PATH
+                    sh docker_stop_remove.sh $env.FRONTEND_CONTAINER_NAME $env.FRONTEND_IMAGE_NAME
+                    exit
+                    EOT"""
+
+                echo "Build and run new container"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.FRONTEND_PATH
+                    sh docker_build_run_frontend.sh $env.FRONTEND_CONTAINER_NAME $env.FRONTEND_IMAGE_NAME
+                    exit
+                    EOT"""                
+                    
+                echo "Clean up files"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd /home/jenkins/
+                    rm -r -f frontend
+                    exit
+                    EOT"""  
+                    
+                echo "Deploying frontend completed"                
+            }
+        }
+        
         stage('Test') {
             steps {
-                //sh """if [ \$(curl -o /dev/null -s -w "%{http_code}\n" $env.DEPLOY_SERVER_ADDR) != 200 ]; then exit 1; else echo "Site up and running"; fi """
+                sh """if [ \$(curl -o /dev/null -s -w "%{http_code}\n" $env.DEPLOY_SERVER_ADDR) != 200 ]; then exit 1; else echo "Site up and running"; fi """
                 echo "Testing completed"
             }
         }
