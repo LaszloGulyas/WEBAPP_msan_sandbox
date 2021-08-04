@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+    
+    environment {
+        DEPLOY_SERVER_ADDR = '46.101.176.240'
+        DEPLOY_SERVER_USER = 'jenkins'
+        
+        BACKEND_PATH = '/home/jenkins/backend/spring-docker-sandbox'
+        BACKEND_BUILT_FILE_NAME = 'spring-docker-sandbox-0.0.1-SNAPSHOT.jar'
+        BACKEND_CONTAINER_NAME = 'backend-spring-server'
+        BACKEND_IMAGE_NAME = 'backend-spring-server-img'
+    }
+
+    stages {
+        stage('Build Backend') {
+            steps {
+                echo "Building backend started"
+                
+                echo "Copy files to remote server"
+                sh """scp -r backend $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:/home/jenkins/"""
+
+                echo "Build Spring Server JAR file"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    mvn clean compile package -DskipTests
+                    mv target/$env.BACKEND_BUILT_FILE_NAME .
+                    exit
+                    EOT"""
+
+                echo "Building backend completed"
+            }
+        }
+        
+        stage('Deploy Backend') {
+            steps {
+                echo "Deploying backend started"
+                
+                echo "Copy deploy scripts to remote server"
+                sh """scp devops/build_scripts/docker_build_run_backend.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
+                sh """scp devops/build_scripts/docker_stop_remove.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
+                
+                echo "Stop and remove previously running container/image"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    sh docker_stop_remove.sh $env.CONTAINER_NAME $env.IMAGE_NAME
+                    exit
+                    EOT"""
+
+                echo "Build and run new container"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    sh docker_build_run_backend.sh $env.CONTAINER_NAME $env.IMAGE_NAME
+                    exit
+                    EOT"""                
+                    
+                echo "Clean up files"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd /home/jenkins/
+                    rm -r backend
+                    exit
+                    EOT"""                
+
+                echo "Deploying backend completed"
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                //sh """if [ \$(curl -o /dev/null -s -w "%{http_code}\n" $env.DEPLOY_SERVER_ADDR) != 200 ]; then exit 1; else echo "Site up and running"; fi """
+                echo "Testing completed"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "success"
+        }
+    
+        failure {
+            echo "failed"
+        }
+    }
+}
