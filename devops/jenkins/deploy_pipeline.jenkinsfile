@@ -13,61 +13,50 @@ pipeline {
         FRONTEND_PATH = '/home/jenkins/frontend/angular-nginx'
         FRONTEND_CONTAINER_NAME = 'frontend-nginx-server'
         FRONTEND_IMAGE_NAME = 'frontend-nginx-server-img'
+
+	DATABASE_CONTAINER_NAME = 'mysql-server-500m'
     }
 
     stages {
-        stage('Build Backend') {
-            steps {
-                echo "Building backend started"
-                
-                echo "Copy files to remote server"
-                sh """scp -r backend $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:/home/jenkins/"""
+	stage('Stop Containers') {
+	    steps {
+		echo "Stop Containers started"
 
-                echo "Build Spring Server JAR file"
+                echo "Copy scripts to remote server"
+                sh """scp devops/build_scripts/docker_stop_container.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:/home/jenkins/"""
+
+		echo "Stop $env.FRONTEND_CONTAINER_NAME"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
-                    cd $env.BACKEND_PATH
-                    mvn clean compile package -DskipTests
-                    mv target/$env.BACKEND_BUILT_FILE_NAME .
+                    cd /home/jenkins
+                    sh docker_stop_container.sh $env.FRONTEND_CONTAINER_NAME
+                    exit
+                    EOT"""  
+
+		echo "Stop $env.BACKEND_CONTAINER_NAME"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd /home/jenkins
+                    sh docker_stop_container.sh $env.BACKEND_CONTAINER_NAME
                     exit
                     EOT"""
 
-                echo "Building backend completed"
-            }
-        }
-        
-        stage('Deploy Backend') {
-            steps {
-                echo "Deploying backend started"
-                
-                echo "Copy deploy scripts to remote server"
-                sh """scp devops/build_scripts/docker_build_run_backend.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
-                sh """scp devops/build_scripts/docker_stop_remove.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
-                
-                echo "Stop and remove previously running container/image"
+		echo "Stop $env.DATABASE_CONTAINER_NAME"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
-                    cd $env.BACKEND_PATH
-                    sh docker_stop_remove.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
+                    cd /home/jenkins
+                    sh docker_stop_container.sh $env.DATABASE_CONTAINER_NAME
                     exit
-                    EOT"""
-
-                echo "Build and run new container"
-                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
-                    cd $env.BACKEND_PATH
-                    sh docker_build_run_backend.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
-                    exit
-                    EOT"""                
-                    
+                    EOT""" 
+		
                 echo "Clean up files"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
                     cd /home/jenkins/
-                    rm -r -f backend
+                    rm -f docker_stop_container.sh
                     exit
-                    EOT"""                
+                    EOT"""
 
-                echo "Deploying backend completed"
-            }
-        }
-        
+		echo "Stop Containers completed"		
+	    }
+	}
+
         stage('Build Frontend') {
             steps {
                 echo "Building frontend started"
@@ -119,6 +108,71 @@ pipeline {
                     EOT"""  
                     
                 echo "Deploying frontend completed"                
+            }
+        }
+
+	stage('Start MySQL server') {
+	    steps {
+                echo "Starting MySQL server started"
+		
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    docker start $env.DATABASE_CONTAINER_NAME
+                    exit
+                    EOT"""		
+
+                echo "Starting MySQL server completed"
+	    }
+	}
+
+        stage('Build Backend') {
+            steps {		
+                echo "Building backend started"
+                
+                echo "Copy files to remote server"
+                sh """scp -r backend $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:/home/jenkins/"""
+
+                echo "Build Spring Server JAR file"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    mvn clean compile package -DskipTests
+                    mv target/$env.BACKEND_BUILT_FILE_NAME .
+                    exit
+                    EOT"""
+
+                echo "Building backend completed"
+            }
+        }
+        
+        stage('Deploy Backend') {
+            steps {
+                echo "Deploying backend started"
+                
+                echo "Copy deploy scripts to remote server"
+                sh """scp devops/build_scripts/docker_build_run_backend.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
+                sh """scp devops/build_scripts/docker_stop_remove.sh $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR:$env.BACKEND_PATH"""
+                
+                echo "Stop and remove previously running container/image"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    sh docker_stop_remove.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
+                    exit
+                    EOT"""
+
+                echo "Build and run new container"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd $env.BACKEND_PATH
+                    sh docker_build_run_backend.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
+                    exit
+                    EOT"""                
+                    
+                echo "Clean up files"
+                sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
+                    cd /home/jenkins/
+                    rm -r -f backend
+                    exit
+                    EOT"""                
+
+                echo "Deploying backend completed"
             }
         }
         
