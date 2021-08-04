@@ -42,14 +42,14 @@ pipeline {
                 echo "Stop and remove previously running container/image"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
                     cd $env.BACKEND_PATH
-                    sh docker_stop_remove.sh $env.CONTAINER_NAME $env.IMAGE_NAME
+                    sh docker_stop_remove.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
                     exit
                     EOT"""
 
                 echo "Build and run new container"
                 sh """ssh -tt $env.DEPLOY_SERVER_USER@$env.DEPLOY_SERVER_ADDR<<EOT
                     cd $env.BACKEND_PATH
-                    sh docker_build_run_backend.sh $env.CONTAINER_NAME $env.IMAGE_NAME
+                    sh docker_build_run_backend.sh $env.BACKEND_CONTAINER_NAME $env.BACKEND_IMAGE_NAME
                     exit
                     EOT"""                
                     
